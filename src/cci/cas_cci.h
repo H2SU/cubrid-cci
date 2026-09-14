@@ -297,9 +297,11 @@ typedef struct
  * cci_internal_lob_open() turns the locator into a read token. */
 typedef struct
 {
-  long long length;
-  int locator_size;
-  char *locator;
+  long long length;		/* value's byte length */
+  int locator_size;		/* 0 when the content came inline */
+  char *locator;		/* NULL when the content came inline */
+  int content_size;		/* inline content length; 0 when this is a reference */
+  char *content;		/* inline content; NULL when this is a reference */
 } T_CCI_INTERNAL_LOB;
 
 typedef struct

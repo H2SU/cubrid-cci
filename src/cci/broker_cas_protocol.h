@@ -134,7 +134,7 @@ extern "C"
 #define CAS_STATEMENT_POOLING_ON		1
 
 /* BITMASK for System Parameter */
-#define MASK_ORACLE_COMPAT_NUMBER_BEHAVIOR      0x01    // oracle_compat_number_behavior
+#define MASK_ORACLE_COMPAT_NUMBER_BEHAVIOR      0x01	// oracle_compat_number_behavior
 
 #define SHARD_ID_INVALID 		(-1)
 #define SHARD_ID_UNSUPPORTED	(-2)
@@ -214,6 +214,12 @@ extern "C"
 /* Largest payload one CAS_FC_LOB_STREAM_READ may ask for.  Both sides bound the request by it so a driver cannot
  * make CAS allocate an arbitrary buffer. */
 #define INTERNAL_LOB_STREAM_MAX_CHUNK (1024 * 1024)
+
+/* Leading byte of every BLOB/CLOB column sent to a PROTOCOL_V13 driver.  It says whether the payload is a
+ * reference to stored content or the content itself; the column type alone cannot distinguish them, because a
+ * scalar function result (CHAR_TO_CLOB('x')) is a LOB value with no storage behind it. */
+#define INTERNAL_LOB_WIRE_INLINE ((char) 0)
+#define INTERNAL_LOB_WIRE_REF    ((char) 1)
 
   enum t_cas_protocol
   {

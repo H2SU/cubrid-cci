@@ -1646,11 +1646,12 @@ qe_fetch (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, char flag, int r
   err_code = net_recv_msg (con_handle, &result_msg, &result_msg_size, err_buf);
   if (err_code < 0)
     {
-      if (err_code == CCI_ER_DBMS || err_code == CCI_ER_COMMUNICATION) {
-        hm_req_handle_fetch_buf_free(req_handle);
-        req_handle->cursor_pos = 0;
-        req_handle->is_closed = 1;
-      }
+      if (err_code == CCI_ER_DBMS || err_code == CCI_ER_COMMUNICATION)
+	{
+	  hm_req_handle_fetch_buf_free (req_handle);
+	  req_handle->cursor_pos = 0;
+	  req_handle->is_closed = 1;
+	}
       return err_code;
     }
 
@@ -3506,25 +3507,46 @@ qe_get_data_internal_lob (T_CCI_U_TYPE u_type, char *col_value_p, int col_val_si
 {
   T_CCI_INTERNAL_LOB *lob = (T_CCI_INTERNAL_LOB *) value;
   INT64 byte_length = 0;
+  char wire_kind;
 
   if (u_type != CCI_U_TYPE_BLOB && u_type != CCI_U_TYPE_CLOB)
     {
       return CCI_ER_TYPE_CONVERSION;
     }
-  if (col_val_size < NET_SIZE_INT64)
+  if (col_val_size < 1)
     {
       return CCI_ER_COMMUNICATION;
     }
 
-  NET_STR_TO_INT64 (byte_length, col_value_p);
+  lob->length = 0;
+  lob->locator_size = 0;
+  lob->locator = NULL;
+  lob->content_size = 0;
+  lob->content = NULL;
+
+  wire_kind = col_value_p[0];
+  if (wire_kind == INTERNAL_LOB_WIRE_INLINE)
+    {
+      /* the value has no storage behind it - what arrived is all there is */
+      lob->content_size = col_val_size - 1;
+      lob->content = col_value_p + 1;
+      lob->length = lob->content_size;
+      return 0;
+    }
+  if (wire_kind != INTERNAL_LOB_WIRE_REF || col_val_size < 1 + NET_SIZE_INT64)
+    {
+      return CCI_ER_COMMUNICATION;
+    }
+
+  NET_STR_TO_INT64 (byte_length, col_value_p + 1);
   if (byte_length < 0)
     {
       return CCI_ER_COMMUNICATION;
     }
 
   lob->length = (long long) byte_length;
-  lob->locator_size = col_val_size - NET_SIZE_INT64;
-  lob->locator = col_value_p + NET_SIZE_INT64;
+  lob->locator_size = col_val_size - 1 - NET_SIZE_INT64;
+  lob->locator = col_value_p + 1 + NET_SIZE_INT64;
   return 0;
 }
 
@@ -7429,8 +7451,7 @@ get_charset_type (char type)
 }
 
 int
-qe_stream_init (T_CON_HANDLE * con_handle, int stream_kind, const char *config, int config_len,
-                T_CCI_ERROR * err_buf)
+qe_stream_init (T_CON_HANDLE * con_handle, int stream_kind, const char *config, int config_len, T_CCI_ERROR * err_buf)
 {
   T_NET_BUF net_buf;
   char func_code = CAS_FC_STREAM_INIT;
@@ -7644,14 +7665,13 @@ qe_lob_stream_read (T_CON_HANDLE * con_handle, INT64 token, char *buf, int size,
       ptr += NET_SIZE_INT;
 
       if (response_code < 0)
-        {
-          err_code = response_code;
-        }
-      else if (received < 0 || received > size
-               || result_msg_size < NET_SIZE_INT + NET_SIZE_INT + received)
-        {
-          err_code = CCI_ER_COMMUNICATION;
-        }
+	{
+	  err_code = response_code;
+	}
+      else if (received < 0 || received > size || result_msg_size < NET_SIZE_INT + NET_SIZE_INT + received)
+	{
+	  err_code = CCI_ER_COMMUNICATION;
+	}
       else
         {
           if (received > 0)
