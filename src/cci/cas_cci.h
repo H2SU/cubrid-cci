@@ -293,6 +293,15 @@ typedef struct
   char *buf;
 } T_CCI_BIT;
 
+/* An internal LOB column is fetched as a reference: the value's byte length plus the locator that names it.
+ * cci_internal_lob_open() turns the locator into a read token. */
+typedef struct
+{
+  long long length;
+  int locator_size;
+  char *locator;
+} T_CCI_INTERNAL_LOB;
+
 typedef struct
 {
   short yr;
@@ -396,7 +405,8 @@ typedef enum
   CCI_A_TYPE_UINT,
   CCI_A_TYPE_UBIGINT,
   CCI_A_TYPE_DATE_TZ,
-  CCI_A_TYPE_LAST = CCI_A_TYPE_DATE_TZ,
+  CCI_A_TYPE_INTERNAL_LOB,
+  CCI_A_TYPE_LAST = CCI_A_TYPE_INTERNAL_LOB,
 
   CCI_A_TYTP_LAST = CCI_A_TYPE_LAST	/* typo but backward compatibility */
 } T_CCI_A_TYPE;
@@ -994,6 +1004,15 @@ extern "C"
   extern int cci_stream_abort (int mapped_conn_id, T_CCI_ERROR * err_buf);
   extern int cci_bind_internal_lob_upload (int mapped_stmt_id, int index, T_CCI_U_TYPE lob_type,
 					  long long token, long long data_length, long long logical_length);
+
+  /* Internal LOB read streaming.  A BLOB/CLOB column of an internal LOB is fetched as a locator plus the value's
+   * byte length (cci_get_data with CCI_A_TYPE_INTERNAL_LOB); the payload is then pulled in bounded chunks so a
+   * multi-gigabyte value never has to sit in client memory. */
+  extern int cci_internal_lob_open (int mapped_conn_id, const char *locator, int locator_len, long long *token,
+				    T_CCI_ERROR * err_buf);
+  extern int cci_internal_lob_read (int mapped_conn_id, long long token, char *buf, int size, int *nread,
+				    T_CCI_ERROR * err_buf);
+  extern int cci_internal_lob_close (int mapped_conn_id, long long token, T_CCI_ERROR * err_buf);
 
   /* Back-compat aliases: COPY was the first consumer of the stream transport. */
   extern int cci_copy_send_data (int mapped_conn_id, const char *data, int data_len, T_CCI_ERROR * err_buf);

@@ -6857,6 +6857,97 @@ cci_stream_abort (int mapped_conn_id, T_CCI_ERROR * err_buf)
   return error;
 }
 
+int
+cci_internal_lob_open (int mapped_conn_id, const char *locator, int locator_len, long long *token,
+                       T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  INT64 opened_token = 0;
+  int error;
+
+  reset_error_buffer (err_buf);
+  if (locator == NULL || locator_len <= 0 || token == NULL)
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
+  *token = 0;
+
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&con_handle->err_buf);
+  error = qe_lob_stream_open (con_handle, locator, locator_len, &opened_token, &con_handle->err_buf);
+  if (error >= 0)
+    {
+      *token = (long long) opened_token;
+    }
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
+  return error;
+}
+
+int
+cci_internal_lob_read (int mapped_conn_id, long long token, char *buf, int size, int *nread, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  int read_count = 0;
+  int error;
+
+  reset_error_buffer (err_buf);
+  if (token <= 0 || buf == NULL || size <= 0 || size > INTERNAL_LOB_STREAM_MAX_CHUNK || nread == NULL)
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
+  *nread = 0;
+
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&con_handle->err_buf);
+  error = qe_lob_stream_read (con_handle, (INT64) token, buf, size, &read_count, &con_handle->err_buf);
+  if (error >= 0)
+    {
+      *nread = read_count;
+    }
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
+  return error;
+}
+
+int
+cci_internal_lob_close (int mapped_conn_id, long long token, T_CCI_ERROR * err_buf)
+{
+  T_CON_HANDLE *con_handle = NULL;
+  int error;
+
+  reset_error_buffer (err_buf);
+  if (token <= 0)
+    {
+      set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
+      return CCI_ER_INVALID_ARGS;
+    }
+
+  error = hm_get_connection (mapped_conn_id, &con_handle);
+  if (error != CCI_ER_NO_ERROR)
+    {
+      set_error_buffer (err_buf, error, NULL);
+      return error;
+    }
+  reset_error_buffer (&con_handle->err_buf);
+  error = qe_lob_stream_close (con_handle, (INT64) token, &con_handle->err_buf);
+  get_last_error (con_handle, err_buf);
+  con_handle->used = false;
+  return error;
+}
+
 /* Back-compat: COPY was the first consumer of the stream transport.
  * These forward to the generalized cci_stream_* entry points. */
 int
