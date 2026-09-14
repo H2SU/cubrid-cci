@@ -7578,8 +7578,8 @@ qe_stream_abort (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf)
  * payload is pulled afterwards in bounded chunks.  The three calls mirror the server read cursor csql uses.
  */
 int
-qe_lob_stream_open (T_CON_HANDLE * con_handle, const char *locator, int locator_len, INT64 * token,
-                    T_CCI_ERROR * err_buf)
+qe_lob_stream_open (T_CON_HANDLE * con_handle, const char *locator, int locator_len, INT64 start_offset,
+                    INT64 * token, T_CCI_ERROR * err_buf)
 {
   T_NET_BUF net_buf;
   char func_code = CAS_FC_LOB_STREAM_OPEN;
@@ -7590,6 +7590,7 @@ qe_lob_stream_open (T_CON_HANDLE * con_handle, const char *locator, int locator_
   net_buf_init (&net_buf);
   net_buf_cp_str (&net_buf, &func_code, 1);
   ADD_ARG_BYTES (&net_buf, locator, locator_len);
+  ADD_ARG_BIGINT (&net_buf, start_offset);
   if (net_buf.err_code < 0)
     {
       err_code = net_buf.err_code;

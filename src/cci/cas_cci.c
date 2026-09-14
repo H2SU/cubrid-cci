@@ -4023,7 +4023,8 @@ ret:
 
 
 int
-cci_bfile_read (int mapped_conn_id, T_CCI_BFILE bfile, long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf)
+cci_bfile_read (int mapped_conn_id, T_CCI_BFILE bfile, long long start_pos, int length, char *buf,
+		T_CCI_ERROR * err_buf)
 {
 #ifdef CCI_DEBUG
   CCI_DEBUG_PRINT (print_debug_msg
@@ -4035,7 +4036,8 @@ cci_bfile_read (int mapped_conn_id, T_CCI_BFILE bfile, long long start_pos, int 
 
 
 int
-cci_cfile_read (int mapped_conn_id, T_CCI_CFILE cfile, long long start_pos, int length, char *buf, T_CCI_ERROR * err_buf)
+cci_cfile_read (int mapped_conn_id, T_CCI_CFILE cfile, long long start_pos, int length, char *buf,
+		T_CCI_ERROR * err_buf)
 {
 #ifdef CCI_DEBUG
   CCI_DEBUG_PRINT (print_debug_msg
@@ -6858,15 +6860,15 @@ cci_stream_abort (int mapped_conn_id, T_CCI_ERROR * err_buf)
 }
 
 int
-cci_internal_lob_open (int mapped_conn_id, const char *locator, int locator_len, long long *token,
-                       T_CCI_ERROR * err_buf)
+cci_internal_lob_open (int mapped_conn_id, const char *locator, int locator_len, long long start_offset,
+                       long long *token, T_CCI_ERROR * err_buf)
 {
   T_CON_HANDLE *con_handle = NULL;
   INT64 opened_token = 0;
   int error;
 
   reset_error_buffer (err_buf);
-  if (locator == NULL || locator_len <= 0 || token == NULL)
+  if (locator == NULL || locator_len <= 0 || start_offset < 0 || token == NULL)
     {
       set_error_buffer (err_buf, CCI_ER_INVALID_ARGS, NULL);
       return CCI_ER_INVALID_ARGS;
@@ -6880,7 +6882,8 @@ cci_internal_lob_open (int mapped_conn_id, const char *locator, int locator_len,
       return error;
     }
   reset_error_buffer (&con_handle->err_buf);
-  error = qe_lob_stream_open (con_handle, locator, locator_len, &opened_token, &con_handle->err_buf);
+  error = qe_lob_stream_open (con_handle, locator, locator_len, (INT64) start_offset, &opened_token,
+			      &con_handle->err_buf);
   if (error >= 0)
     {
       *token = (long long) opened_token;
