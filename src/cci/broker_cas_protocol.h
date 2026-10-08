@@ -188,6 +188,10 @@ extern "C"
     CAS_FC_CURSOR_CLOSE = 42,
     CAS_FC_GET_SHARD_INFO = 43,
     CAS_FC_CAS_CHANGE_MODE = 44,
+    CAS_FC_STREAM_SEND_DATA = 45,
+    CAS_FC_STREAM_END = 46,
+    CAS_FC_STREAM_INIT = 47,
+    CAS_FC_STREAM_ABORT = 48,
 
     /* Whenever you want to introduce a new function code, you must add a corresponding function entry to
      * server_fn_table of both CUBRID and (MySQL, Oracle). */
@@ -198,6 +202,11 @@ extern "C"
     CAS_FC_PREPARE_AND_EXECUTE_FOR_PROTO_V2 = 42
   };
   typedef enum t_cas_func_code T_CAS_FUNC_CODE;
+
+/* Compatibility aliases: COPY was the first consumer of the stream transport.
+ * The function-code values are unchanged (wire-compatible). */
+#define CAS_FC_COPY_SEND_DATA CAS_FC_STREAM_SEND_DATA
+#define CAS_FC_COPY_END       CAS_FC_STREAM_END
 
   enum t_cas_protocol
   {
@@ -214,7 +223,9 @@ extern "C"
     PROTOCOL_V10 = 10,		/* Secure Broker/CAS using SSL */
     PROTOCOL_V11 = 11,		/* make out resultset */
     PROTOCOL_V12 = 12,		/* Remove trailing zeros from double and float types */
-    CURRENT_PROTOCOL = PROTOCOL_V12
+    PROTOCOL_V13 = 13,		/* client->server byte-stream transport (CAS_FC_STREAM_*); on develop V13 also
+				 * makes the CAS-issued session id required for QC/X1 query cancel */
+    CURRENT_PROTOCOL = PROTOCOL_V13
   };
   typedef enum t_cas_protocol T_CAS_PROTOCOL;
 
