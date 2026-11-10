@@ -376,9 +376,9 @@ net_connect_srv (T_CON_HANDLE * con_handle, int host_id, T_CCI_ERROR * err_buf, 
 
   body_len = *(msg_header.msg_body_size_ptr);
   broker_ver = hm_get_broker_version (con_handle);
-  /* This driver's type numbers and BLOB/CLOB column format came with PROTOCOL_V14: an older server, develop's
-   * V13 included, reads them wrongly, so refuse it rather than return wrong values. */
-  if (!hm_broker_understand_the_protocol (broker_ver, PROTOCOL_V14))
+  /* This driver's type numbers, BLOB/CLOB column format and stream requests came with PROTOCOL_V13: an older
+   * server reads them wrongly, so refuse it rather than return wrong values. */
+  if (!hm_broker_understand_the_protocol (broker_ver, PROTOCOL_V13))
     {
       err_code = CCI_ER_NOT_SUPPORTED_PROTOCOL;
       FREE_MEM (msg_buf);
