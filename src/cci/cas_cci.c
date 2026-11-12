@@ -4620,8 +4620,7 @@ cci_get_err_msg_internal (int error)
       return "SSL handshake failure";
 
     case CCI_ER_NOT_SUPPORTED_PROTOCOL:
-      return "The connected server uses an unsupported protocol version. "
-	"This driver only supports servers using PROTOCOL_V13 or later.";
+      return "Not supported by the connected server. It needs a server using PROTOCOL_V13 or later.";
 
     case CCI_ER_SSL_CERT_VERIFY:
       return "The server certificate could not be verified (check sslca, and the certificate's validity period and "
@@ -6804,6 +6803,11 @@ cci_bind_internal_lob_upload (int mapped_stmt_id, int index, T_CCI_U_TYPE lob_ty
       {
 	return error;
       }
+    if (!hm_broker_support_internal_lob (con_handle))
+      {
+	con_handle->used = false;
+	return CCI_ER_NOT_SUPPORTED_PROTOCOL;
+      }
     qe_discard_unsent_uploads (con_handle, req_handle, index - 1);
     error = qe_bind_param (req_handle, index, CCI_A_TYPE_BIT, &marker_value, UNMEASURED_LENGTH, upload_type, 0);
     if (error >= 0 && req_handle->unsent_uploads == NULL)
@@ -6999,6 +7003,10 @@ cci_stream_read_open (int mapped_conn_id, int stream_kind, const char *config, i
 
   error = qe_stream_read_open (con_handle, stream_kind, config, config_len, first_max, flags, handle, buf, nread,
 			       reply_flags, &(con_handle->err_buf));
+  if (error < 0)
+    {
+      set_error_buffer (&(con_handle->err_buf), error, NULL);
+    }
 
   get_last_error (con_handle, err_buf);
   con_handle->used = false;
@@ -7029,6 +7037,10 @@ cci_stream_read (int mapped_conn_id, long long handle, char *buf, int max, char 
   reset_error_buffer (&(con_handle->err_buf));
 
   error = qe_stream_read (con_handle, handle, buf, max, flags, nread, reply_flags, &(con_handle->err_buf));
+  if (error < 0)
+    {
+      set_error_buffer (&(con_handle->err_buf), error, NULL);
+    }
 
   get_last_error (con_handle, err_buf);
   con_handle->used = false;
@@ -7053,6 +7065,10 @@ cci_stream_release (int mapped_conn_id, long long handle, T_CCI_ERROR * err_buf)
   reset_error_buffer (&(con_handle->err_buf));
 
   error = qe_stream_release (con_handle, handle, &(con_handle->err_buf));
+  if (error < 0)
+    {
+      set_error_buffer (&(con_handle->err_buf), error, NULL);
+    }
 
   get_last_error (con_handle, err_buf);
   con_handle->used = false;

@@ -361,6 +361,7 @@ extern bool hm_broker_match_the_protocol (T_BROKER_VERSION broker_version, int r
 
 extern bool hm_broker_support_holdable_result (T_CON_HANDLE * con_handle);
 extern bool hm_broker_reconnect_when_server_down (T_CON_HANDLE * con_handle);
+extern bool hm_broker_support_internal_lob (T_CON_HANDLE * con_handle);
 
 extern void hm_set_con_handle_holdable (T_CON_HANDLE * con_handle, int holdable);
 extern int hm_get_con_handle_holdable (T_CON_HANDLE * con_handle);

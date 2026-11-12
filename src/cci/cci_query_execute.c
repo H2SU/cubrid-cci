@@ -7549,6 +7549,11 @@ qe_stream_init (T_CON_HANDLE * con_handle, int stream_kind, const char *config, 
   char *result_msg = NULL;
   int result_msg_size;
 
+  if (!hm_broker_support_internal_lob (con_handle))
+    {
+      return CCI_ER_NOT_SUPPORTED_PROTOCOL;
+    }
+
   /* kind, config, flags, first chunk (none: the data follows in SEND_DATA) */
   net_buf_init (&net_buf);
   net_buf_cp_str (&net_buf, &func_code, 1);
@@ -7584,6 +7589,11 @@ qe_stream_send_data (T_CON_HANDLE * con_handle, const char *data, int data_len, 
   char *result_msg = NULL;
   int result_msg_size;
 
+  if (!hm_broker_support_internal_lob (con_handle))
+    {
+      return CCI_ER_NOT_SUPPORTED_PROTOCOL;
+    }
+
   net_buf_init (&net_buf);
   net_buf_cp_str (&net_buf, &func_code, 1);
   ADD_ARG_BYTES (&net_buf, data, data_len);
@@ -7614,6 +7624,11 @@ qe_stream_end (T_CON_HANDLE * con_handle, INT64 * result, T_CCI_ERROR * err_buf)
   int err_code;
   char *result_msg = NULL;
   int result_msg_size;
+
+  if (!hm_broker_support_internal_lob (con_handle))
+    {
+      return CCI_ER_NOT_SUPPORTED_PROTOCOL;
+    }
 
   net_buf_init (&net_buf);
   net_buf_cp_str (&net_buf, &func_code, 1);
@@ -7652,6 +7667,11 @@ qe_stream_abort (T_CON_HANDLE * con_handle, T_CCI_ERROR * err_buf)
   char *result_msg = NULL;
   int result_msg_size;
 
+  if (!hm_broker_support_internal_lob (con_handle))
+    {
+      return CCI_ER_NOT_SUPPORTED_PROTOCOL;
+    }
+
   net_buf_init (&net_buf);
   net_buf_cp_str (&net_buf, &func_code, 1);
   err_code = net_send_msg (con_handle, net_buf.data, net_buf.data_size);
@@ -7673,11 +7693,11 @@ qe_stream_request (T_CON_HANDLE * con_handle, T_NET_BUF * net_buf, char **result
 {
   int err_code;
 
-  /* the family (45-52) came with PROTOCOL_V13, and an older CAS closes the connection on a code it does not know */
-  if (!hm_broker_understand_the_protocol (hm_get_broker_version (con_handle), PROTOCOL_V13))
+  /* the family (45-53) came with PROTOCOL_V13, and an older CAS closes the connection on a code it does not know */
+  if (!hm_broker_support_internal_lob (con_handle))
     {
       net_buf_clear (net_buf);
-      return CCI_ER_NOT_IMPLEMENTED;
+      return CCI_ER_NOT_SUPPORTED_PROTOCOL;
     }
 
   if (net_buf->err_code < 0)
