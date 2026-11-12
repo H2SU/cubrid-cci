@@ -402,6 +402,8 @@ hm_pool_restore_used_statements (T_CON_HANDLE * connection)
     {
       int statement = r->req_handle_index;
 
+      /* the binding goes with the returned statement: release uploads it bound but never executed */
+      qe_discard_unsent_uploads (connection, r, -1);
       req_handle_content_free_for_pool (r);
       r = (T_REQ_HANDLE *) r->next;
       hm_pool_move_node_from_use_to_lru (connection, statement);
