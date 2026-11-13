@@ -185,7 +185,7 @@ static int next_result_info_decode (char *buf, int size, T_REQ_HANDLE * req_hand
 static int bind_value_conversion (T_CCI_A_TYPE a_type, T_CCI_U_TYPE u_type, char flag, void *value, int length,
 				  T_BIND_VALUE * bind_value);
 static int bind_value_to_net_buf (T_NET_BUF * net_buf, T_CCI_U_TYPE u_type, void *value, int size, char *charset,
-				  bool set_default_value);
+				  bool set_default_value, bool typed_null);
 static int execute_array_info_decode (char *buf, int size, char flag, T_CCI_QUERY_RESULT ** qr, int *res_remain_size);
 static T_CCI_U_TYPE get_basic_utype (T_CCI_U_EXT_TYPE u_ext_type);
 static int parameter_info_decode (char *buf, int size, int num_param, T_CCI_PARAM_INFO ** res_param);
@@ -551,7 +551,10 @@ qe_bind_param (T_REQ_HANDLE * req_handle, int index, T_CCI_A_TYPE a_type, void *
 
   if (value == NULL || u_type == CCI_U_TYPE_NULL)
     {
-      req_handle->bind_value[index].u_type = CCI_U_TYPE_NULL;
+      /* a NULL keeps the type it is bound with (CCI_U_TYPE_NULL: none) */
+      req_handle->bind_value[index].u_type = u_type;
+      req_handle->bind_value[index].value = NULL;
+      req_handle->bind_value[index].size = 0;
       return 0;
     }
 
@@ -578,6 +581,7 @@ qe_execute (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, char flag, int
   int remain_msg_size = 0;
   int remaining_time = 0;
   bool use_server_query_cancel = false;
+  bool typed_null;
   int shard_id;
   T_BROKER_VERSION broker_ver;
 
@@ -652,12 +656,13 @@ qe_execute (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, char flag, int
       ADD_ARG_INT (&net_buf, 0);
     }
 
+  typed_null = hm_broker_understand_the_protocol (broker_ver, PROTOCOL_V13);
   for (i = 0; i < req_handle->num_bind; i++)
     {
       bind_value_to_net_buf (&net_buf, req_handle->bind_value[i].u_type, req_handle->bind_value[i].value,
 			     req_handle->bind_value[i].size, con_handle->charset,
 			     is_set_default_value_if_null (con_handle, req_handle->stmt_type,
-							   req_handle->bind_mode[i]));
+							   req_handle->bind_mode[i]), typed_null);
     }
 
   if (net_buf.err_code < 0)
@@ -2164,7 +2169,7 @@ qe_oid_put2 (T_CON_HANDLE * con_handle, char *oid_str, char **attr_name, void **
 	    }
 	}
 
-      bind_value_to_net_buf (&net_buf, u_type, value, data_size, con_handle->charset, false);
+      bind_value_to_net_buf (&net_buf, u_type, value, data_size, con_handle->charset, false, false);
 
       if (tmp_cell.flag == BIND_PTR_DYNAMIC)
 	{
@@ -2833,6 +2838,7 @@ qe_execute_array (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, T_CCI_QU
   int remaining_time = 0;
   int shard_id;
   T_BROKER_VERSION broker_ver;
+  bool typed_null;
 
   net_buf_init (&net_buf);
 
@@ -2859,6 +2865,7 @@ qe_execute_array (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, T_CCI_QU
   autocommit_flag = (char) con_handle->autocommit_mode;
   ADD_ARG_BYTES (&net_buf, &autocommit_flag, 1);
 
+  typed_null = hm_broker_understand_the_protocol (broker_ver, PROTOCOL_V13);
   for (row = 0; row < req_handle->bind_array_size; row++)
     {
       for (idx = 0; idx < req_handle->num_bind; idx++)
@@ -2867,13 +2874,10 @@ qe_execute_array (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, T_CCI_QU
 	  cur_cell.value = NULL;
 	  cur_cell.size = 0;
 
-	  if (req_handle->bind_value[idx].value == NULL)
+	  if (req_handle->bind_value[idx].value == NULL || req_handle->bind_value[idx].null_ind[row])
 	    {
-	      cur_cell.u_type = CCI_U_TYPE_NULL;
-	    }
-	  else if (req_handle->bind_value[idx].null_ind[row])
-	    {
-	      cur_cell.u_type = CCI_U_TYPE_NULL;
+	      /* a NULL keeps the type it is bound with, for the whole array (value NULL) or one row */
+	      cur_cell.u_type = req_handle->bind_value[idx].u_type;
 	    }
 	  else
 	    {
@@ -3004,7 +3008,8 @@ qe_execute_array (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, T_CCI_QU
 		  return err_code;
 		}
 	    }
-	  bind_value_to_net_buf (&net_buf, cur_cell.u_type, cur_cell.value, cur_cell.size, con_handle->charset, false);
+	  bind_value_to_net_buf (&net_buf, cur_cell.u_type, cur_cell.value, cur_cell.size, con_handle->charset, false,
+				 typed_null);
 	  if (cur_cell.flag == BIND_PTR_DYNAMIC)
 	    {
 	      FREE_MEM (cur_cell.value);
@@ -3160,7 +3165,8 @@ qe_cursor_update (T_REQ_HANDLE * req_handle, T_CON_HANDLE * con_handle, int curs
 	}
     }
 
-  bind_value_to_net_buf (&net_buf, bind_value.u_type, bind_value.value, bind_value.size, con_handle->charset, false);
+  bind_value_to_net_buf (&net_buf, bind_value.u_type, bind_value.value, bind_value.size, con_handle->charset, false,
+			 false);
   if (bind_value.flag == BIND_PTR_DYNAMIC)
     {
       FREE_MEM (bind_value.value);
@@ -4948,9 +4954,24 @@ get_windows_charset_code (char *str)
 }
 #endif
 
+/* keeps the string the application may still point to when the new column info repeats it, and frees the other */
+static char *
+col_info_str_keep (char *old_str, char *new_str)
+{
+  if (old_str != NULL && new_str != NULL && strcmp (old_str, new_str) == 0)
+    {
+      FREE_MEM (new_str);
+      return old_str;
+    }
+
+  FREE_MEM (old_str);
+  return new_str;
+}
+
 static int
 prepare_info_decode (char *buf, int *size, T_REQ_HANDLE * req_handle)
 {
+  int i;
   int num_bind_info;
   int num_col_info;
   int remain_size = *size;
@@ -5003,11 +5024,30 @@ prepare_info_decode (char *buf, int *size, T_REQ_HANDLE * req_handle)
       return num_col_info;
     }
 
-  req_handle_col_info_free (req_handle);
+  if (req_handle->col_info != NULL && req_handle->num_col_info == num_col_info)
+    {
+      /* an EXECUTE resends the column info of the plan it ran: the pointer cci_get_result_info returned stays valid */
+      for (i = 0; i < num_col_info; i++)
+	{
+	  T_CCI_COL_INFO *old_col = &req_handle->col_info[i];
+	  T_CCI_COL_INFO *new_col = &col_info[i];
+
+	  new_col->col_name = col_info_str_keep (old_col->col_name, new_col->col_name);
+	  new_col->real_attr = col_info_str_keep (old_col->real_attr, new_col->real_attr);
+	  new_col->class_name = col_info_str_keep (old_col->class_name, new_col->class_name);
+	  new_col->default_value = col_info_str_keep (old_col->default_value, new_col->default_value);
+	  *old_col = *new_col;
+	}
+      FREE_MEM (col_info);
+    }
+  else
+    {
+      req_handle_col_info_free (req_handle);
+      req_handle->num_col_info = num_col_info;
+      req_handle->col_info = col_info;
+    }
 
   req_handle->num_bind = num_bind_info;
-  req_handle->num_col_info = num_col_info;
-  req_handle->col_info = col_info;
   req_handle->stmt_type = (T_CCI_CUBRID_STMT) stmt_type;
   req_handle->first_stmt_type = req_handle->stmt_type;
   req_handle->updatable_flag = updatable_flag;
@@ -6753,7 +6793,7 @@ bind_value_conversion (T_CCI_A_TYPE a_type, T_CCI_U_TYPE u_type, char flag, void
 
 static int
 bind_value_to_net_buf (T_NET_BUF * net_buf, T_CCI_U_TYPE u_type, void *value, int size, char *charset,
-		       bool set_default_value)
+		       bool set_default_value, bool typed_null)
 {
   if (u_type < CCI_U_TYPE_FIRST || u_type > CCI_U_TYPE_LAST)
     {
@@ -6762,8 +6802,11 @@ bind_value_to_net_buf (T_NET_BUF * net_buf, T_CCI_U_TYPE u_type, void *value, in
 
   if (u_type != CCI_U_TYPE_NULL && value == NULL && set_default_value == false)
     {
-      assert (false);
-      u_type = CCI_U_TYPE_NULL;
+      /* a NULL bound with a type: a PROTOCOL_V13 or later broker keeps the type, an older one gets a NULL without it */
+      if (!typed_null)
+	{
+	  u_type = CCI_U_TYPE_NULL;
+	}
       ADD_ARG_BYTES (net_buf, &u_type, 1);
       ADD_ARG_BYTES (net_buf, NULL, 0);
       return 0;
@@ -6924,6 +6967,7 @@ bind_value_to_net_buf (T_NET_BUF * net_buf, T_CCI_U_TYPE u_type, void *value, in
 	  default_value.hh = 0;
 	  default_value.mm = 0;
 	  default_value.ss = 0;
+	  default_value.ms = 0;
 	  default_value.tz[0] = '\0';
 	  ADD_ARG_DATETIMETZ (net_buf, &default_value);
 	}
