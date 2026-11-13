@@ -101,10 +101,11 @@ extern "C"
 #define CAS_INFO_FLAG_MASK_FORCE_OUT_TRAN       0x02
 #define CAS_INFO_FLAG_MASK_NEW_SESSION_ID       0x04
 
-/* The optional trailing flags byte of the bundled stream requests and replies (the engine's cas_protocol.h). */
+/* The flags byte of the stream requests and replies (the engine's cas_protocol.h), required on INIT, READ_OPEN and
+ * READ. A bit not listed for a request is refused with CAS_ER_ARGS. */
 #define CAS_STREAM_FLAG_FINAL			0x01	/* INIT, SEND_DATA: end the stream with this chunk */
 #define CAS_STREAM_FLAG_RELEASE_AT_EOF		0x01	/* READ_OPEN, READ: release the handle at eof */
-#define CAS_STREAM_FLAG_AUTO_COMMIT		0x02	/* READ_OPEN, READ: what RELEASE's auto-commit byte says */
+#define CAS_STREAM_FLAG_AUTO_COMMIT		0x02	/* INIT, READ_OPEN, READ: the connection runs in auto-commit */
 #define CAS_STREAM_FLAG_EOF			0x01	/* READ_OPEN, READ reply */
 #define CAS_STREAM_FLAG_RELEASED		0x02	/* READ_OPEN, READ reply: the handle is gone */
 

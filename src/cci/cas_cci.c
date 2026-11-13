@@ -6693,11 +6693,17 @@ cci_stream_pack_int64 (char *ptr, unsigned long long value)
     }
 }
 
+/* STREAM_KIND_INTERNAL_LOB, as the engine's internal_lob_stream_kind.h defines it.
+ * config: version (int), type (int, 0 = BLOB, 1 = CLOB), data length (int64), logical length (int64) */
+#define STREAM_KIND_INTERNAL_LOB 1
+#define INTERNAL_LOB_STREAM_CONFIG_VERSION 1
+#define INTERNAL_LOB_STREAM_CONFIG_SIZE (NET_SIZE_INT * 2 + NET_SIZE_INT64 * 2)
+
 int
 cci_stream_init_internal_lob (int mapped_conn_id, T_CCI_U_TYPE lob_type, long long data_length,
 			      long long logical_length, T_CCI_ERROR * err_buf)
 {
-  char config[20];
+  char config[INTERNAL_LOB_STREAM_CONFIG_SIZE];
   int stream_type;
 
   if ((lob_type != CCI_U_TYPE_BLOB && lob_type != CCI_U_TYPE_CLOB) || data_length < 0 || logical_length < 0)
@@ -6706,11 +6712,12 @@ cci_stream_init_internal_lob (int mapped_conn_id, T_CCI_U_TYPE lob_type, long lo
       return CCI_ER_INVALID_ARGS;
     }
   stream_type = (lob_type == CCI_U_TYPE_BLOB) ? 0 : 1;
-  config[0] = config[1] = config[2] = 0;
-  config[3] = (char) stream_type;
-  cci_stream_pack_int64 (config + 4, (unsigned long long) data_length);
-  cci_stream_pack_int64 (config + 12, (unsigned long long) logical_length);
-  return cci_stream_init (mapped_conn_id, 1, config, sizeof (config), err_buf);
+  memset (config, 0, NET_SIZE_INT * 2);
+  config[NET_SIZE_INT - 1] = INTERNAL_LOB_STREAM_CONFIG_VERSION;
+  config[NET_SIZE_INT * 2 - 1] = (char) stream_type;
+  cci_stream_pack_int64 (config + NET_SIZE_INT * 2, (unsigned long long) data_length);
+  cci_stream_pack_int64 (config + NET_SIZE_INT * 2 + NET_SIZE_INT64, (unsigned long long) logical_length);
+  return cci_stream_init (mapped_conn_id, STREAM_KIND_INTERNAL_LOB, config, sizeof (config), err_buf);
 }
 
 int
